@@ -75,9 +75,9 @@ def add_school(request):
 def get_all_school(request):
     # checking for the parameters from the URL
     if request.query_params:
-        schools = School.objects.filter(**request.query_params.dict())
+        schools = School.objects.filter(**request.query_params.dict()).order_by('-createdAt').values()
     else:
-        schools = School.objects.all()
+        schools = School.objects.all().order_by('-createdAt').values()
 
     # if there is something in schools else raise error
     serializer = SchoolSerializer(schools, many=True)
@@ -86,7 +86,8 @@ def get_all_school(request):
 
 @api_view(['GET'])
 def get_schools(request):
-    queryset = School.objects.all()
+    queryset = School.objects.all().order_by('-createdAt').values()
+
     return paginate_queryset(request, queryset, SchoolSerializer, context=None, filter_params=None)
 
 
@@ -141,7 +142,7 @@ def get_all_classroom(request):
 
     filter_params = {key: value for key, value in request.query_params.items() if key in ['school']}
 
-    schools = Classroom.objects.filter(**filter_params)
+    schools = Classroom.objects.filter(**filter_params).select_related('school_id').order_by('-createdAt')
 
     serializer = ClassroomSerializer(schools, many=True, context={'has_school': has_school})
     return Response(serializer.data)
@@ -154,7 +155,8 @@ def get_classrooms(request):
                      key in ['school_id']}
     context = {'has_school': request.query_params.get('has_school', 'false').lower() == 'true'}
 
-    queryset = Classroom.objects.all()
+    queryset = Classroom.objects.all().select_related('school_id').order_by(
+        '-createdAt')  # select_related: lấy thông tin của bảng liên quan school
     return paginate_queryset(request, queryset, ClassroomSerializer, context=context, filter_params=filter_params)
 
 
@@ -195,7 +197,6 @@ def delete_classroom(request, pk):
 @api_view(['POST'])
 def add_student(request):
     student = StudentSerializer(data=request.data)
-
     # validating for already existing data
 
     # if Student.objects.filter(**request.data).exists():
@@ -215,7 +216,7 @@ def get_all_student(request):
 
     filter_params = {key: value for key, value in request.query_params.items() if key in ['classroom_id']}
 
-    students = Student.objects.filter(**filter_params)
+    students = Student.objects.filter(**filter_params).select_related('classroom_id').order_by('-createdAt')
 
     serializer = StudentSerializer(students, many=True, context={'has_class': has_class})
     return Response(serializer.data)
@@ -228,15 +229,16 @@ def get_students(request):
                      key in ['classroom_id', 'school_id', 'classroom']}
 
     school_id = filter_params.get('school_id')
+    # students = Student.objects.select_related('classroom__school').filter(classroom__school_id=school_id)
 
     if school_id:
-        classrooms = Classroom.objects.filter(school_id=school_id)
-        classroom_ids = classrooms.values_list('id', flat=True)
-        queryset = Student.objects.filter(classroom_id__in=classroom_ids)
-
+        queryset = Student.objects.select_related('classroom_id__school_id') \
+            .filter(classroom_id__school_id=school_id) \
+            .order_by('-createdAt')
         filter_params.pop("school_id", None)
     else:
-        queryset = Student.objects.all()
+        all_student = Student.objects.all()
+        queryset = all_student.select_related('classroom_id').order_by('-createdAt')
 
     context = {'has_classroom': request.query_params.get('has_classroom', 'false').lower() == 'true',
                'has_school': request.query_params.get('has_school', 'false').lower() == 'true'}

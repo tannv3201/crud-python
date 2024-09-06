@@ -6,7 +6,7 @@ from .models import School, Student, Classroom
 class SchoolSerializer(serializers.ModelSerializer):
     class Meta:
         model = School
-        fields = ('id', 'name', 'address')
+        fields = ('id', 'name', 'address', 'createdAt', 'updatedAt')
 
 
 class ClassroomSerializer(serializers.ModelSerializer):
@@ -14,7 +14,7 @@ class ClassroomSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Classroom
-        fields = ('id', 'name', 'school_id', 'school')
+        fields = ('id', 'name', 'school_id', 'school', 'createdAt', 'updatedAt')
 
     def get_school(self, obj):
         has_school = self.context.get('has_school', False)
@@ -29,7 +29,7 @@ class StudentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Student
-        fields = ('id', 'name', 'classroom_id', 'classroom', 'school')
+        fields = ('id', 'name', 'classroom_id', 'classroom', 'school', 'createdAt', 'updatedAt')
 
     def get_classroom(self, obj):
         has_classroom = self.context.get('has_classroom', False)
