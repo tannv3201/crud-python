@@ -3,7 +3,6 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path('', views.ApiOverview, name='home'),
     path('school/create', views.add_school, name='add-school'),
     path('school/all', views.get_all_school, name='view_school'),
     path('school/list', views.get_schools, name='view_schools'),
@@ -11,12 +10,12 @@ urlpatterns = [
     path('school/delete/<uuid:pk>', views.delete_school, name='delete-school'),
     path('school/<uuid:pk>', views.get_one_school, name='detail-school'),
 
-    path('class/create', views.add_class, name='add_class'),
-    path('class/all', views.get_all_class, name='get_all_class'),
-    path('class/list', views.get_classes, name='get_classes'),
-    path('class/update/<uuid:pk>', views.update_class, name='update_class'),
-    path('class/delete/<uuid:pk>', views.delete_class, name='delete_class'),
-    path('class/<uuid:pk>', views.get_one_class, name='get_one_class'),
+    path('classroom/create', views.create_classroom, name='add_class'),
+    path('classroom/all', views.get_all_classroom, name='get_all_class'),
+    path('classroom/list', views.get_classrooms, name='get_classes'),
+    path('classroom/update/<uuid:pk>', views.update_classroom, name='update_class'),
+    path('classroom/delete/<uuid:pk>', views.delete_classroom, name='delete_class'),
+    path('classroom/<uuid:pk>', views.get_one_classroom, name='get_one_class'),
 
     path('student/create', views.add_student, name='add_student'),
     path('student/all', views.get_all_student, name='get_all_student'),

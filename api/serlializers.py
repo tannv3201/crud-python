@@ -1,12 +1,6 @@
 from rest_framework import serializers
 
-from .models import Item, School, Student, ClassRoom
-
-
-class ItemSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Item
-        fields = ('category', 'subcategory', 'name', 'amount')
+from .models import School, Student, Classroom
 
 
 class SchoolSerializer(serializers.ModelSerializer):
@@ -15,14 +9,14 @@ class SchoolSerializer(serializers.ModelSerializer):
         fields = ('id', 'name', 'address')
 
 
-class ClassRoomSerializer(serializers.ModelSerializer):
+class ClassroomSerializer(serializers.ModelSerializer):
     school = serializers.SerializerMethodField()
 
     class Meta:
-        model = ClassRoom
-        fields = ('id', 'name', 'school', 'school_')
+        model = Classroom
+        fields = ('id', 'name', 'school_id', 'school')
 
-    def get_school_(self, obj):
+    def get_school(self, obj):
         has_school = self.context.get('has_school', False)
         if has_school:
             return SchoolSerializer(obj.school_id).data
@@ -30,14 +24,22 @@ class ClassRoomSerializer(serializers.ModelSerializer):
 
 
 class StudentSerializer(serializers.ModelSerializer):
-    class_ = serializers.SerializerMethodField()
+    classroom = serializers.SerializerMethodField()
+    school = serializers.SerializerMethodField()
 
     class Meta:
         model = Student
-        fields = ('id', 'name', 'class_room_id', 'class_')
+        fields = ('id', 'name', 'classroom_id', 'classroom', 'school')
 
-    def get_class_(self, obj):
-        has_class = self.context.get('has_class', False)
-        if has_class:
-            return ClassRoomSerializer(obj.class_room_id).data
+    def get_classroom(self, obj):
+        has_classroom = self.context.get('has_classroom', False)
+        if has_classroom:
+            return ClassroomSerializer(obj.classroom_id).data
+        return None
+
+    def get_school(self, obj):
+        has_school = self.context.get('has_school', False)
+        if has_school:
+            classroom = obj.classroom_id
+            return SchoolSerializer(classroom.school_id).data
         return None

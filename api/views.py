@@ -5,82 +5,54 @@ from rest_framework.decorators import api_view
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-from .models import Item, School, ClassRoom, Student
-from .serlializers import ItemSerializer, SchoolSerializer, ClassRoomSerializer, StudentSerializer
+from .models import School, Classroom, Student
+from .serlializers import SchoolSerializer, ClassroomSerializer, StudentSerializer
 
 
-# METHOD GET
-@api_view(['GET'])
-def ApiOverview(request):
-    api_urls = {
-        'all_items': '/',
-        'Search by Category': '/?category=category_name',
-        'Search by Subcategory': '/?subcategory=category_name',
-        'Add': '/create',
-        'Update': '/update/pk',
-        'Delete': '/item/pk/delete'
+def paginate_queryset(request, queryset, serializer_class, context=None, page_size=5, page_size_query_param='pageSize',
+                      max_page_size=100, search_param='search', filter_params=None):
+    paginator = PageNumberPagination()
+    paginator.page_size = page_size
+    paginator.page_size_query_param = page_size_query_param
+    paginator.max_page_size = max_page_size
+
+    search = request.query_params.get(search_param, None)
+
+    # Apply filter parameters if provided
+    if filter_params:
+        queryset = queryset.filter(**filter_params)
+
+    if search:
+        queryset = queryset.filter(name__icontains=search)
+
+    result_page = paginator.paginate_queryset(queryset, request)
+    serializer = serializer_class(result_page, many=True, context=context)
+
+    response_data = {
+        'totalRecords': queryset.count(),
+        'totalPages': paginator.page.paginator.num_pages,
+        'currentPage': paginator.page.number,
+        'pageSize': paginator.page.paginator.per_page,
+        'results': serializer.data
     }
-
-    return Response(api_urls)
-
-
-# METHOD POST
-@api_view(['POST'])
-def add_items(request):
-    item = ItemSerializer(data=request.data)
-
-    # validating for already existing data
-    if Item.objects.filter(**request.data).exists():
-        raise serializers.ValidationError('This data already exists')
-
-    if item.is_valid():
-        item.save()
-        return Response(item.data)
-    else:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-
-# METHOD GET
-@api_view(['GET'])
-def view_items(request):
-    # checking for the parameters from the URL
-    if request.query_params:
-        items = Item.objects.filter(**request.query_params.dict())
-    else:
-        items = Item.objects.all()
-
-    # if there is something in items else raise error
-    if items:
-        serializer = ItemSerializer(items, many=True)
-        return Response(serializer.data)
-    else:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-
-# METHOD UPDATE
-@api_view(['POST'])
-def update_items(request, pk):
-    item = Item.objects.get(pk=pk)
-    print("abc", item)
-    data = ItemSerializer(instance=item, data=request.data)
-    print("data", data.is_valid())
-    if data.is_valid():
-        data.save()
-        return Response(data.data)
-    else:
-        return Response(status=status.HTTP_404_NOT_FOUND)
-
-
-# METHOD DELETE
-@api_view(['DELETE'])
-def delete_items(request, pk):
-    item = get_object_or_404(Item, pk=pk)
-    item.delete()
-    return Response(status=status.HTTP_202_ACCEPTED)
+    return Response(response_data)
 
 
 # ----------------------------------------
 # SCHOOL API
+
+class BasePagination(PageNumberPagination):
+    page_size = 5
+    page_size_query_param = 'pageSize'
+    max_page_size = 100
+
+
+def paginate_and_respond(queryset, request, serializer_class, context=None):
+    paginator = BasePagination()
+    result_page = paginator.paginate_queryset(queryset, request)
+    serializer = serializer_class(result_page, many=True, context=context)
+    return paginator.get_paginated_response(serializer.data)
+
 
 @api_view(['POST'])
 def add_school(request):
@@ -114,34 +86,8 @@ def get_all_school(request):
 
 @api_view(['GET'])
 def get_schools(request):
-    paginator = PageNumberPagination()
-    paginator.page_size = 5  # Số lượng bản ghi trên mỗi trang
-    paginator.page_size_query_param = 'pageSize'
-    paginator.max_page_size = 100  # Số lượng bản ghi tối đa trên mỗi trang
-
-    search = request.query_params.get('search', None)  # Thêm tham số tìm kiếm
-
-    filter_params = {}
-    for param in request.query_params:
-        if param not in ['page', 'pageSize', 'search']:  # Loại trừ các tham số phân trang
-            filter_params[param] = request.query_params.get(param)
-
-    schools = School.objects.filter(**filter_params)
-
-    if search:
-        schools = schools.filter(name__icontains=search)  # Tìm kiếm không phân biệt chữ hoa chữ thường
-
-    result_page = paginator.paginate_queryset(schools, request)
-    serializer = SchoolSerializer(result_page, many=True)
-
-    response_data = {
-        'totalRecords': schools.count(),
-        'totalPages': paginator.page.paginator.num_pages,
-        'currentPage': paginator.page.number,
-        'pageSize': paginator.page.paginator.per_page,
-        'results': serializer.data
-    }
-    return Response(response_data)
+    queryset = School.objects.all()
+    return paginate_queryset(request, queryset, SchoolSerializer, context=None, filter_params=None)
 
 
 @api_view(['GET'])
@@ -174,15 +120,11 @@ def delete_school(request, pk):
 
 # ----------------------------------------
 # CLASS API
-
 @api_view(['POST'])
-def add_class(request):
-    class_data = ClassRoomSerializer(data=request.data)
-    print(class_data)
+def create_classroom(request):
+    class_data = ClassroomSerializer(data=request.data)
 
-    # validating for already existing data
-
-    if ClassRoom.objects.filter(**request.data).exists():
+    if Classroom.objects.filter(**request.data).exists():
         raise serializers.ValidationError('This data already exists')
 
     if class_data.is_valid():
@@ -194,75 +136,44 @@ def add_class(request):
 
 # METHOD GET
 @api_view(['GET'])
-def get_all_class(request):
+def get_all_classroom(request):
     has_school = request.query_params.get('has_school', 'false').lower() == 'true'
 
     filter_params = {key: value for key, value in request.query_params.items() if key in ['school']}
 
-    schools = ClassRoom.objects.filter(**filter_params)
+    schools = Classroom.objects.filter(**filter_params)
 
-    serializer = ClassRoomSerializer(schools, many=True, context={'has_school': has_school})
+    serializer = ClassroomSerializer(schools, many=True, context={'has_school': has_school})
     return Response(serializer.data)
 
 
 # METHOD GET
 @api_view(['GET'])
-def get_classes(request):
-    paginator = PageNumberPagination()
-    paginator.page_size = 5  # Số lượng bản ghi trên mỗi trang
-    paginator.page_size_query_param = 'pageSize'
-    paginator.max_page_size = 100  # Số lượng bản ghi tối đa trên mỗi trang
+def get_classrooms(request):
+    filter_params = {key: value for key, value in request.query_params.items() if
+                     key in ['school_id']}
+    context = {'has_school': request.query_params.get('has_school', 'false').lower() == 'true'}
 
-    search = request.query_params.get('search', None)  # Thêm tham số tìm kiếm
-    school_id = request.query_params.get('school_id', None)  # Thêm tham số tìm kiếm
-
-    filter_params = {}
-    for param in request.query_params:
-        if param not in ['page', 'pageSize']:  # Loại trừ các tham số phân trang
-            filter_params[param] = request.query_params.get(param)
-
-    has_school = request.query_params.get('has_school', 'false').lower() == 'true'
-
-    filter_params = {key: value for key, value in request.query_params.items() if key in ['school_id']}
-
-    classes = ClassRoom.objects.filter(**filter_params)
-
-    if search:
-        classes = classes.filter(name__icontains=search)  # Tìm kiếm không phân biệt chữ hoa chữ thường
-
-    if school_id:
-        classes = classes.filter(school_id=school_id)  # Tìm kiếm không phân biệt chữ hoa chữ thường
-
-    result_page = paginator.paginate_queryset(classes, request)
-
-    serializer = ClassRoomSerializer(result_page, many=True, context={'has_school': has_school})
-
-    response_data = {
-        'totalRecords': classes.count(),
-        'totalPages': paginator.page.paginator.num_pages,
-        'currentPage': paginator.page.number,
-        'pageSize': paginator.page.paginator.per_page,
-        'results': serializer.data
-    }
-    return Response(response_data)
+    queryset = Classroom.objects.all()
+    return paginate_queryset(request, queryset, ClassroomSerializer, context=context, filter_params=filter_params)
 
 
 @api_view(['GET'])
-def get_one_class(request, pk):
+def get_one_classroom(request, pk):
     # checking for the parameters from the URL
     has_school = request.query_params.get('has_school', 'false').lower() == 'true'
 
-    class_data = get_object_or_404(ClassRoom, pk=pk)
+    class_data = get_object_or_404(Classroom, pk=pk)
 
-    serializer = ClassRoomSerializer(class_data, context={'has_school': has_school})
+    serializer = ClassroomSerializer(class_data, context={'has_school': has_school})
     return Response(serializer.data)
 
 
 # METHOD UPDATE
 @api_view(['PUT', 'PATCH'])
-def update_class(request, pk):
-    class_data = ClassRoom.objects.get(pk=pk)
-    data = ClassRoomSerializer(instance=class_data, data=request.data, partial=True)
+def update_classroom(request, pk):
+    class_data = Classroom.objects.get(pk=pk)
+    data = ClassroomSerializer(instance=class_data, data=request.data, partial=True)
     if data.is_valid():
         data.save()
         return Response(data.data)
@@ -272,8 +183,8 @@ def update_class(request, pk):
 
 # METHOD DELETE
 @api_view(['DELETE'])
-def delete_class(request, pk):
-    class_data = get_object_or_404(ClassRoom, pk=pk)
+def delete_classroom(request, pk):
+    class_data = get_object_or_404(Classroom, pk=pk)
     class_data.delete()
     return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -302,7 +213,7 @@ def add_student(request):
 def get_all_student(request):
     has_class = request.query_params.get('has_class', 'false').lower() == 'true'
 
-    filter_params = {key: value for key, value in request.query_params.items() if key in ['class_id']}
+    filter_params = {key: value for key, value in request.query_params.items() if key in ['classroom_id']}
 
     students = Student.objects.filter(**filter_params)
 
@@ -313,43 +224,24 @@ def get_all_student(request):
 # METHOD GET
 @api_view(['GET'])
 def get_students(request):
-    paginator = PageNumberPagination()
-    paginator.page_size = 5
-    paginator.page_size_query_param = 'pageSize'
-    paginator.max_page_size = 100
+    filter_params = {key: value for key, value in request.query_params.items() if
+                     key in ['classroom_id', 'school_id', 'classroom']}
 
-    search = request.query_params.get('search', None)  # Thêm tham số tìm kiếm
-    class_id = request.query_params.get('class_id', None)  # Thêm tham số tìm kiếm
+    school_id = filter_params.get('school_id')
 
-    filter_params = {}
-    for param in request.query_params:
-        if param not in ['page', 'pageSize', 'search', 'class_id']:  # Loại trừ các tham số phân trang
-            filter_params[param] = request.query_params.get(param)
+    if school_id:
+        classrooms = Classroom.objects.filter(school_id=school_id)
+        classroom_ids = classrooms.values_list('id', flat=True)
+        queryset = Student.objects.filter(classroom_id__in=classroom_ids)
 
-    has_class = request.query_params.get('has_class', 'false').lower() == 'true'
+        filter_params.pop("school_id", None)
+    else:
+        queryset = Student.objects.all()
 
-    filter_params = {key: value for key, value in request.query_params.items() if key in ['class_id']}
+    context = {'has_classroom': request.query_params.get('has_classroom', 'false').lower() == 'true',
+               'has_school': request.query_params.get('has_school', 'false').lower() == 'true'}
 
-    students = Student.objects.filter(**filter_params)
-
-    if search:
-        students = students.filter(name__icontains=search)  # Tìm kiếm không phân biệt chữ hoa chữ thường
-
-    if class_id:
-        students = students.filter(class_id=class_id)  # Tìm kiếm không phân biệt chữ hoa chữ thường
-
-    result_page = paginator.paginate_queryset(students, request)
-
-    serializer = StudentSerializer(result_page, many=True, context={'has_class': has_class})
-
-    response_data = {
-        'totalRecords': students.count(),
-        'totalPages': paginator.page.paginator.num_pages,
-        'currentPage': paginator.page.number,
-        'pageSize': paginator.page.paginator.per_page,
-        'results': serializer.data
-    }
-    return Response(response_data)
+    return paginate_queryset(request, queryset, StudentSerializer, context=context, filter_params=filter_params)
 
 
 @api_view(['GET'])
