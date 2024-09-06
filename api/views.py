@@ -20,7 +20,19 @@ def paginate_queryset(request, queryset, serializer_class, context=None, page_si
 
     # Apply filter parameters if provided
     if filter_params:
-        queryset = queryset.filter(**filter_params)
+        updated_filter_params = {}
+        for key, value in filter_params.items():
+            # Check if the value contains a comma
+            if ',' in value:
+                # Split the value and use __in to filter
+                value_list = [v.strip() for v in value.split(',')]
+
+                updated_filter_params[f"{key}__in"] = value_list
+            else:
+                updated_filter_params[key] = value
+
+        # Apply the filters to the queryset
+        queryset = queryset.filter(**updated_filter_params)
 
     if search:
         queryset = queryset.filter(name__icontains=search)
@@ -228,14 +240,17 @@ def get_students(request):
     filter_params = {key: value for key, value in request.query_params.items() if
                      key in ['classroom_id', 'school_id', 'classroom']}
 
-    school_id = filter_params.get('school_id')
-    # students = Student.objects.select_related('classroom__school').filter(classroom__school_id=school_id)
+    school_ids = filter_params.get('school_id')
 
-    if school_id:
+    if school_ids:
+        school_ids_arr = school_ids.split(",")
+
         queryset = Student.objects.select_related('classroom_id__school_id') \
-            .filter(classroom_id__school_id=school_id) \
+            .filter(classroom_id__school_id__in=school_ids_arr) \
             .order_by('-createdAt')
         filter_params.pop("school_id", None)
+
+
     else:
         all_student = Student.objects.all()
         queryset = all_student.select_related('classroom_id').order_by('-createdAt')
