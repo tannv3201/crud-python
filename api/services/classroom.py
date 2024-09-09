@@ -10,7 +10,7 @@ from api.views.paginate_queryset import paginate_queryset
 def add_classroom_service(data):
     if Classroom.objects.filter(**data).exists():
         return Response({
-            'message': 'Dữ liệu lớp hoọc đã tồn tại.'
+            'message': 'Dữ liệu lớp học đã tồn tại.'
         }, status=status.HTTP_409_CONFLICT)
 
     serializer = ClassroomSerializer(data=data)
